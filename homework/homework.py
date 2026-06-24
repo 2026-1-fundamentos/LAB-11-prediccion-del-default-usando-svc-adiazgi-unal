@@ -95,3 +95,218 @@
 # {'type': 'cm_matrix', 'dataset': 'train', 'true_0': {"predicted_0": 15562, "predicte_1": 666}, 'true_1': {"predicted_0": 3333, "predicted_1": 1444}}
 # {'type': 'cm_matrix', 'dataset': 'test', 'true_0': {"predicted_0": 15562, "predicte_1": 650}, 'true_1': {"predicted_0": 2490, "predicted_1": 1420}}
 #
+# flake8: noqa: E501
+
+import gzip
+import json
+import os
+import pickle
+
+import pandas as pd
+
+from sklearn.compose import ColumnTransformer
+from sklearn.decomposition import PCA
+from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.metrics import (
+    balanced_accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+)
+from sklearn.model_selection import GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.svm import SVC
+
+
+def clean_data(df):
+    df = df.copy()
+
+    df = df.rename(
+        columns={
+            "default payment next month": "default",
+        }
+    )
+
+    if "ID" in df.columns:
+        df = df.drop(columns=["ID"])
+
+    df = df[df["EDUCATION"] != 0]
+    df = df[df["MARRIAGE"] != 0]
+
+    df["EDUCATION"] = df["EDUCATION"].apply(
+        lambda x: 4 if x > 4 else x
+    )
+
+    return df
+
+
+def load_data():
+    train = pd.read_csv("files/input/train_data.csv.zip")
+    test = pd.read_csv("files/input/test_data.csv.zip")
+
+    train = clean_data(train)
+    test = clean_data(test)
+
+    x_train = train.drop(columns=["default"])
+    y_train = train["default"]
+
+    x_test = test.drop(columns=["default"])
+    y_test = test["default"]
+
+    return x_train, y_train, x_test, y_test
+
+
+def build_model():
+
+    categorical = [
+        "SEX",
+        "EDUCATION",
+        "MARRIAGE",
+    ]
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            (
+                "cat",
+                OneHotEncoder(handle_unknown="ignore"),
+                categorical,
+            )
+        ],
+        remainder="passthrough",
+    )
+
+    pipeline = Pipeline(
+        [
+            ("OneHotEncoder", preprocessor),
+            ("PCA", PCA()),
+            ("StandardScaler", StandardScaler()),
+            ("SelectKBest", SelectKBest(score_func=f_classif)),
+            ("SVC", SVC()),
+        ]
+    )
+
+    param_grid = {
+        "SelectKBest__k": [10, 15, 20, "all"],
+        "SVC__kernel": ["linear", "rbf"],
+        "SVC__C": [0.1, 1.0, 10.0],
+        "SVC__gamma": ["scale", "auto"],
+    }
+
+    model = GridSearchCV(
+        estimator=pipeline,
+        param_grid=param_grid,
+        cv=10,
+        scoring="balanced_accuracy",
+        n_jobs=-1,
+    )
+
+    return model
+
+
+def save_model(model):
+    os.makedirs("files/models", exist_ok=True)
+
+    with gzip.open(
+        "files/models/model.pkl.gz",
+        "wb",
+    ) as file:
+        pickle.dump(model, file)
+
+
+def metrics_dict(dataset, y_true, y_pred):
+    return {
+        "type": "metrics",
+        "dataset": dataset,
+        "precision": round(
+            precision_score(y_true, y_pred),
+            3,
+        ),
+        "balanced_accuracy": round(
+            balanced_accuracy_score(y_true, y_pred),
+            3,
+        ),
+        "recall": round(
+            recall_score(y_true, y_pred),
+            3,
+        ),
+        "f1_score": round(
+            f1_score(y_true, y_pred),
+            3,
+        ),
+    }
+
+
+def confusion_dict(dataset, y_true, y_pred):
+    cm = confusion_matrix(y_true, y_pred)
+
+    return {
+        "type": "cm_matrix",
+        "dataset": dataset,
+        "true_0": {
+            "predicted_0": int(cm[0, 0]),
+            "predicted_1": int(cm[0, 1]),
+        },
+        "true_1": {
+            "predicted_0": int(cm[1, 0]),
+            "predicted_1": int(cm[1, 1]),
+        },
+    }
+
+
+def save_metrics(metrics):
+    os.makedirs("files/output", exist_ok=True)
+
+    with open(
+        "files/output/metrics.json",
+        "w",
+        encoding="utf-8",
+    ) as file:
+        for metric in metrics:
+            file.write(
+                json.dumps(metric) + "\n"
+            )
+
+
+def main():
+
+    x_train, y_train, x_test, y_test = load_data()
+
+    model = build_model()
+
+    model.fit(x_train, y_train)
+
+    save_model(model)
+
+    train_pred = model.predict(x_train)
+    test_pred = model.predict(x_test)
+
+    metrics = [
+        metrics_dict(
+            "train",
+            y_train,
+            train_pred,
+        ),
+        metrics_dict(
+            "test",
+            y_test,
+            test_pred,
+        ),
+        confusion_dict(
+            "train",
+            y_train,
+            train_pred,
+        ),
+        confusion_dict(
+            "test",
+            y_test,
+            test_pred,
+        ),
+    ]
+
+    save_metrics(metrics)
+
+
+if __name__ == "__main__":
+    main()
