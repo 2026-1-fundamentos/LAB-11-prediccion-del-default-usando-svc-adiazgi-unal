@@ -123,104 +123,31 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.svm import SVC
 
 
-def load_data():
+def load_and_clean(filepath):
 
-    train = pd.read_csv("files/input/train_data.csv.zip")
-    test = pd.read_csv("files/input/test_data.csv.zip")
+    df = pd.read_csv(filepath)
 
-    for df in [train, test]:
+    df = df.rename(
+        columns={"default payment next month": "default"}
+    )
 
-        df.rename(
-            columns={"default payment next month": "default"},
-            inplace=True,
-        )
+    df = df.drop(columns=["ID"])
 
-        df.drop(columns=["ID"], inplace=True)
+    df["EDUCATION"] = df["EDUCATION"].apply(
+        lambda x: 4 if x > 4 else x
+    )
 
-        df.drop(
-            df[
-                (df["EDUCATION"] == 0)
-                | (df["MARRIAGE"] == 0)
-            ].index,
-            inplace=True,
-        )
+    df = df[
+        (df["EDUCATION"] != 0)
+        & (df["MARRIAGE"] != 0)
+    ]
 
-        df["EDUCATION"] = df["EDUCATION"].apply(
-            lambda x: 4 if x > 4 else x
-        )
-
-    return train, test
+    return df
 
 
-def metrics_dict(y_true, y_pred, dataset):
+def build_pipeline():
 
-    return {
-        "type": "metrics",
-        "dataset": dataset,
-        "precision": float(precision_score(y_true, y_pred)),
-        "balanced_accuracy": float(
-            balanced_accuracy_score(y_true, y_pred)
-        ),
-        "recall": float(recall_score(y_true, y_pred)),
-        "f1_score": float(f1_score(y_true, y_pred)),
-    }
-
-
-def confusion_dict(y_true, y_pred, dataset):
-
-    cm = confusion_matrix(y_true, y_pred)
-
-    return {
-        "type": "cm_matrix",
-        "dataset": dataset,
-        "true_0": {
-            "predicted_0": int(cm[0, 0]),
-            "predicted_1": int(cm[0, 1]),
-        },
-        "true_1": {
-            "predicted_0": int(cm[1, 0]),
-            "predicted_1": int(cm[1, 1]),
-        },
-    }
-
-
-def save_model(model):
-
-    os.makedirs("files/models", exist_ok=True)
-
-    with gzip.open(
-        "files/models/model.pkl.gz",
-        "wb",
-    ) as file:
-        pickle.dump(model, file)
-
-
-def save_metrics(results):
-
-    os.makedirs("files/output", exist_ok=True)
-
-    with open(
-        "files/output/metrics.json",
-        "w",
-        encoding="utf-8",
-    ) as file:
-
-        for item in results:
-            file.write(json.dumps(item))
-            file.write("\n")
-
-
-def pregunta_01():
-
-    train, test = load_data()
-
-    X_train = train.drop(columns=["default"])
-    y_train = train["default"]
-
-    X_test = test.drop(columns=["default"])
-    y_test = test["default"]
-
-    categorical_cols = [
+    categorical_features = [
         "SEX",
         "EDUCATION",
         "MARRIAGE",
@@ -231,80 +158,139 @@ def pregunta_01():
             (
                 "cat",
                 OneHotEncoder(handle_unknown="ignore"),
-                categorical_cols,
+                categorical_features,
             ),
         ],
         remainder="passthrough",
     )
 
     pipeline = Pipeline(
-        [
-            ("preprocessor", preprocessor),
+        steps=[
+            ("onehot", preprocessor),
             ("pca", PCA()),
             ("scaler", StandardScaler()),
-            (
-                "selectkbest",
-                SelectKBest(score_func=f_classif),
-            ),
-            ("classifier", SVC()),
+            ("kbest", SelectKBest(score_func=f_classif)),
+            ("svc", SVC()),
         ]
     )
 
+    return pipeline
+
+
+def save_metrics(model, x_train, y_train, x_test, y_test):
+
+    os.makedirs("files/output", exist_ok=True)
+
+    metrics = []
+
+    for dataset_name, X, y in [
+        ("train", x_train, y_train),
+        ("test", x_test, y_test),
+    ]:
+
+        y_pred = model.predict(X)
+
+        metrics.append(
+            {
+                "type": "metrics",
+                "dataset": dataset_name,
+                "precision": round(
+                    precision_score(y, y_pred),
+                    3,
+                ),
+                "balanced_accuracy": round(
+                    balanced_accuracy_score(y, y_pred),
+                    3,
+                ),
+                "recall": round(
+                    recall_score(y, y_pred),
+                    3,
+                ),
+                "f1_score": round(
+                    f1_score(y, y_pred),
+                    3,
+                ),
+            }
+        )
+
+        cm = confusion_matrix(y, y_pred)
+
+        metrics.append(
+            {
+                "type": "cm_matrix",
+                "dataset": dataset_name,
+                "true_0": {
+                    "predicted_0": int(cm[0, 0]),
+                    "predicted_1": int(cm[0, 1]),
+                },
+                "true_1": {
+                    "predicted_0": int(cm[1, 0]),
+                    "predicted_1": int(cm[1, 1]),
+                },
+            }
+        )
+
+    with open(
+        "files/output/metrics.json",
+        "w",
+        encoding="utf-8",
+    ) as file:
+        for item in metrics:
+            file.write(json.dumps(item) + "\n")
+
+
+def train_model():
+
+    train = load_and_clean(
+        "files/input/train_data.csv.zip"
+    )
+
+    test = load_and_clean(
+        "files/input/test_data.csv.zip"
+    )
+
+    x_train = train.drop(columns=["default"])
+    y_train = train["default"]
+
+    x_test = test.drop(columns=["default"])
+    y_test = test["default"]
+
+    pipeline = build_pipeline()
+
     param_grid = {
-        "pca__n_components": [10, 15, 20],
-        "selectkbest__k": [5, 10, 15, 20],
-        "classifier__kernel": ["rbf"],
-        "classifier__C": [1, 10, 100],
-        "classifier__gamma": [
-            "scale",
-            0.01,
-            0.001,
-        ],
+       "pca__n_components": [None],
+       "kbest__k": [10, 15, 20],
+       "svc__kernel": ["rbf"],
+       "svc__C": [1, 10, 100],
+       "svc__gamma": ["scale", "auto"],
     }
 
     model = GridSearchCV(
         estimator=pipeline,
         param_grid=param_grid,
-        scoring="balanced_accuracy",
         cv=10,
-        n_jobs=-1,
+        scoring="balanced_accuracy",
+        n_jobs=1,
     )
 
-    model.fit(X_train, y_train)
+    model.fit(x_train, y_train)
 
-    print("BEST PARAMS:", model.best_params_)
-    print("BEST SCORE:", model.best_score_)
+    os.makedirs("files/models", exist_ok=True)
 
-    save_model(model)
+    with gzip.open(
+        "files/models/model.pkl.gz",
+        "wb",
+    ) as file:
+        pickle.dump(model, file)
 
-    y_train_pred = model.predict(X_train)
-    y_test_pred = model.predict(X_test)
-
-    results = [
-        metrics_dict(
-            y_train,
-            y_train_pred,
-            "train",
-        ),
-        metrics_dict(
-            y_test,
-            y_test_pred,
-            "test",
-        ),
-        confusion_dict(
-            y_train,
-            y_train_pred,
-            "train",
-        ),
-        confusion_dict(
-            y_test,
-            y_test_pred,
-            "test",
-        ),
-    ]
-
-    save_metrics(results)
+    save_metrics(
+        model,
+        x_train,
+        y_train,
+        x_test,
+        y_test,
+    )
 
 
 if __name__ == "__main__":
-    pregunta_01()
+    train_model()
