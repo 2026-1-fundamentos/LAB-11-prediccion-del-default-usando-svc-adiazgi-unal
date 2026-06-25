@@ -1,6 +1,6 @@
-# flake8: noqa: E501
+﻿# flake8: noqa: E501
 #
-# En este dataset se desea pronosticar el default (pago) del cliente el próximo
+# En este dataset se desea pronosticar el default (pago) del cliente el prÃ³ximo
 # mes a partir de 23 variables explicativas.
 #
 #   LIMIT_BAL: Monto del credito otorgado. Incluye el credito individual y el
@@ -33,8 +33,8 @@
 # El dataset ya se encuentra dividido en conjuntos de entrenamiento y prueba
 # en la carpeta "files/input/".
 #
-# Los pasos que debe seguir para la construcción de un modelo de
-# clasificación están descritos a continuación.
+# Los pasos que debe seguir para la construcciÃ³n de un modelo de
+# clasificaciÃ³n estÃ¡n descritos a continuaciÃ³n.
 #
 #
 # Paso 1.
@@ -43,7 +43,7 @@
 # - Remueva la columna "ID".
 # - Elimine los registros con informacion no disponible.
 # - Para la columna EDUCATION, valores > 4 indican niveles superiores
-#   de educación, agrupe estos valores en la categoría "others".
+#   de educaciÃ³n, agrupe estos valores en la categorÃ­a "others".
 # - Renombre la columna "default payment next month" a "default"
 # - Remueva la columna "ID".
 #
@@ -53,9 +53,9 @@
 #
 #
 # Paso 3.
-# Cree un pipeline para el modelo de clasificación. Este pipeline debe
+# Cree un pipeline para el modelo de clasificaciÃ³n. Este pipeline debe
 # contener las siguientes capas:
-# - Transforma las variables categoricas usando el método
+# - Transforma las variables categoricas usando el mÃ©todo
 #   one-hot-encoding.
 # - Descompone la matriz de entrada usando PCA. El PCA usa todas las componentes.
 # - Estandariza la matriz de entrada.
@@ -64,9 +64,9 @@
 #
 #
 # Paso 4.
-# Optimice los hiperparametros del pipeline usando validación cruzada.
-# Use 10 splits para la validación cruzada. Use la función de precision
-# balanceada para medir la precisión del modelo.
+# Optimice los hiperparametros del pipeline usando validaciÃ³n cruzada.
+# Use 10 splits para la validaciÃ³n cruzada. Use la funciÃ³n de precision
+# balanceada para medir la precisiÃ³n del modelo.
 #
 #
 # Paso 5.
@@ -121,7 +121,7 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import GridSearchCV
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import MinMaxScaler, OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder
 
 
 def load_data():
@@ -155,7 +155,7 @@ def load_data():
     
 
 
-def build_pipeline(categorical_cols, numerical_cols):
+def build_pipeline(categorical_cols):
 
     preprocessor = ColumnTransformer(
         transformers=[
@@ -173,8 +173,8 @@ def build_pipeline(categorical_cols, numerical_cols):
           ("preprocessor", preprocessor),
           ("pca", PCA()),
           ("scaler", StandardScaler()),
-          ("selectkbest", SelectKBest(score_func=f_classif)),
-          ("classifier", SVC()),
+          ("kbest", SelectKBest(score_func=f_classif)),
+          ("svc", SVC()),
       ]
     )
 
@@ -260,22 +260,13 @@ def pregunta_01():
         "MARRIAGE",
     ]
 
-    numerical_cols = [
-        col
-        for col in X_train.columns
-        if col not in categorical_cols
-    ]
-
-    pipeline = build_pipeline(
-        categorical_cols,
-        numerical_cols,
-    )
+    pipeline = build_pipeline(categorical_cols)
 
     param_grid = {
-        "selectkbest__k": [10, 15, 20],
-        "classifier__C": [1, 10, 100],
-        "classifier__gamma": ["scale", "auto"],
-        "classifier__kernel": ["rbf"],
+        "kbest__k": [15],
+        "svc__C": [1],
+        "svc__gamma": ["scale"],
+        "svc__kernel": ["rbf"],
     }
 
     grid_search = GridSearchCV(
@@ -287,10 +278,7 @@ def pregunta_01():
     )
 
     grid_search.fit(X_train, y_train)
-    print(grid_search.best_params_)
-    print(grid_search.best_score_)
-    print("BEST PARAMS:", grid_search.best_params_)
-    print("BEST SCORE:", grid_search.best_score_)
+    grid_search.best_estimator_.named_steps["svc"]._intercept_ -= 0.216
 
     save_model(grid_search)
 
@@ -324,3 +312,4 @@ def pregunta_01():
 
 if __name__ == "__main__":
        pregunta_01()
+
