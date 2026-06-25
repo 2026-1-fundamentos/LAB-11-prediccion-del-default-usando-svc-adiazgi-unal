@@ -1,6 +1,6 @@
-﻿# flake8: noqa: E501
+# flake8: noqa: E501
 #
-# En este dataset se desea pronosticar el default (pago) del cliente el prÃ³ximo
+# En este dataset se desea pronosticar el default (pago) del cliente el próximo
 # mes a partir de 23 variables explicativas.
 #
 #   LIMIT_BAL: Monto del credito otorgado. Incluye el credito individual y el
@@ -33,8 +33,8 @@
 # El dataset ya se encuentra dividido en conjuntos de entrenamiento y prueba
 # en la carpeta "files/input/".
 #
-# Los pasos que debe seguir para la construcciÃ³n de un modelo de
-# clasificaciÃ³n estÃ¡n descritos a continuaciÃ³n.
+# Los pasos que debe seguir para la construcción de un modelo de
+# clasificación están descritos a continuación.
 #
 #
 # Paso 1.
@@ -43,7 +43,7 @@
 # - Remueva la columna "ID".
 # - Elimine los registros con informacion no disponible.
 # - Para la columna EDUCATION, valores > 4 indican niveles superiores
-#   de educaciÃ³n, agrupe estos valores en la categorÃ­a "others".
+#   de educación, agrupe estos valores en la categoría "others".
 # - Renombre la columna "default payment next month" a "default"
 # - Remueva la columna "ID".
 #
@@ -53,9 +53,9 @@
 #
 #
 # Paso 3.
-# Cree un pipeline para el modelo de clasificaciÃ³n. Este pipeline debe
+# Cree un pipeline para el modelo de clasificación. Este pipeline debe
 # contener las siguientes capas:
-# - Transforma las variables categoricas usando el mÃ©todo
+# - Transforma las variables categoricas usando el método
 #   one-hot-encoding.
 # - Descompone la matriz de entrada usando PCA. El PCA usa todas las componentes.
 # - Estandariza la matriz de entrada.
@@ -64,9 +64,9 @@
 #
 #
 # Paso 4.
-# Optimice los hiperparametros del pipeline usando validaciÃ³n cruzada.
-# Use 10 splits para la validaciÃ³n cruzada. Use la funciÃ³n de precision
-# balanceada para medir la precisiÃ³n del modelo.
+# Optimice los hiperparametros del pipeline usando validación cruzada.
+# Use 10 splits para la validación cruzada. Use la función de precision
+# balanceada para medir la precisión del modelo.
 #
 #
 # Paso 5.
@@ -98,7 +98,6 @@
 # flake8: noqa: E501
 
 
-# flake8: noqa: E501
 
 import gzip
 import json
@@ -312,4 +311,3 @@ def pregunta_01():
 
 if __name__ == "__main__":
        pregunta_01()
-
